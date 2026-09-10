@@ -1,0 +1,17 @@
+/vendor/
+/node_modules/
+.env
+.env.*
+!.env.example
+*.pfx
+*.pem
+*.key
+.idea/
+.vscode/
+*.swp
+*~
+.DS_Store
+phpunit.cache/
+.phpunit.result.cache
+coverage/
+composer.phar
