@@ -1,5 +1,8 @@
 # OpenEMR Provider Dashboard
 
+<img width="1909" height="922" alt="Screenshot from 2026-09-10 10-40-25" src="https://github.com/user-attachments/assets/4d2f0b20-c5da-4760-9e65-b74ca9506a37" />
+
+
 Provider-facing **Tasks** dashboard for OpenEMR: find encounters that still need documentation or coding, track review status, and bulk eSign forms.
 
 **Module Manager name:** JSE Provider Dashboard  
