@@ -1,6 +1,6 @@
 ---
 name: Feature request
-about: Suggest an enhancement for the Provider Dashboard
+about: Suggest an enhancement for the Task Manager
 title: "[Feature]: "
 labels: enhancement
 assignees: ''

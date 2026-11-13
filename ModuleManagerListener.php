@@ -1,7 +1,7 @@
 <?php
 
 /**
- * Module Manager lifecycle hooks for Provider Dashboard.
+ * Module Manager lifecycle hooks for Task Manager.
  *
  * @package OpenEMR
  * @license https://www.gnu.org/licenses/gpl-3.0.html GNU GPL-3.0-only
@@ -55,6 +55,10 @@ class ModuleManagerListener extends AbstractModuleActionListener
             sqlStatement(
                 "DELETE FROM `list_options` WHERE `list_id` = 'default_open_tabs' AND `option_id` = 'pdb'"
             );
+            sqlStatement(
+                "DELETE FROM `background_services` WHERE `name` = 'TaskManagerCompleteness'"
+            );
+            sqlStatement('DROP TABLE IF EXISTS `module_task_manager_tasks`');
         } catch (Throwable $e) {
             error_log('oe-provider-dashboard unregister: ' . $e->getMessage());
         }

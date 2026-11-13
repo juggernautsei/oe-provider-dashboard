@@ -9,7 +9,7 @@
 
 require_once __DIR__ . '/_init.php';
 
-$title = xlt('Cosign Notes');
+$title = 'Cosign Notes';
 $ctx = provider_dashboard_context();
 ?>
 <!doctype html>

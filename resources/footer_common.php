@@ -1,7 +1,7 @@
 <?php
 
 /**
- * Shared footer scripts for Provider Dashboard.
+ * Shared footer scripts for Task Manager.
  *
  * @package OpenEMR
  * @license https://www.gnu.org/licenses/gpl-3.0.html GNU GPL-3.0-only

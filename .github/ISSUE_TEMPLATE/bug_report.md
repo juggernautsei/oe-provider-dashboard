@@ -1,6 +1,6 @@
 ---
 name: Bug report
-about: Report a problem with the Provider Dashboard module
+about: Report a problem with the Task Manager module
 title: "[Bug]: "
 labels: bug
 assignees: ''

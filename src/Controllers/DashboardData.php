@@ -1,7 +1,7 @@
 <?php
 
 /**
- * Provider dashboard encounter/documentation queries.
+ * Task Manager encounter/documentation queries.
  *
  * Extracted from Ace702 interface/provider_dashboard.
  *

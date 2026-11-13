@@ -1,7 +1,9 @@
 <?php
 
 /**
- * Shared bootstrap for Provider Dashboard public pages (OpenEMR 8.x friendly).
+ * Shared bootstrap for Task Manager public pages (OpenEMR 8.x friendly).
+ *
+ * Access is staff-wide: providers, front desk, billing, clinical, admin.
  *
  * @package OpenEMR
  * @license https://www.gnu.org/licenses/gpl-3.0.html GNU GPL-3.0-only
@@ -18,18 +20,20 @@ use OpenEMR\Core\OEGlobalsBag;
 // interface/globals.php from .../custom_modules/oe-provider-dashboard/public
 require_once dirname(__DIR__, 4) . '/globals.php';
 
-// ACL: encounters coding (adjust per site if needed)
-// Allow common clinical/billing roles that need the documentation dashboard
+// ACL: any common staff role that works patient charts or billing
 if (
     !AclMain::aclCheckCore('encounters', 'coding_a')
     && !AclMain::aclCheckCore('encounters', 'auth_a')
     && !AclMain::aclCheckCore('encounters', 'notes')
     && !AclMain::aclCheckCore('patients', 'med')
+    && !AclMain::aclCheckCore('patients', 'demo')
+    && !AclMain::aclCheckCore('patients', 'appt')
+    && !AclMain::aclCheckCore('acct', 'bill')
     && !AclMain::aclCheckCore('admin', 'super')
 ) {
     echo (new TwigContainer(null, $GLOBALS['kernel'] ?? null))->getTwig()->render(
         'core/unauthorized.html.twig',
-        ['pageTitle' => xl('Provider Dashboard')]
+        ['pageTitle' => xl('Task Manager')]
     );
     exit;
 }

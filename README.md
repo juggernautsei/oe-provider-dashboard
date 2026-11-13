@@ -1,9 +1,10 @@
-# OpenEMR Provider Dashboard
+# OpenEMR Task Manager
 
-Provider-facing **Tasks** dashboard for OpenEMR: find encounters that still need documentation or coding, track review status, and bulk eSign forms.
+Staff-wide **Task Manager** for OpenEMR (providers, front desk, billing, supervisors): open work queues for chart completeness (insurance plan type, dates, referral/prior-auth visits), missing documentation/coding, review status, and bulk eSign.
 
-**Module Manager name:** JSE Provider Dashboard  
-**Package version:** 1.0.0 (`version.php`)  
+**Module Manager name:** JSE Task Manager  
+**Package version:** 1.2.0 (`version.php`)  
+**Install directory:** `oe-provider-dashboard` (unchanged for upgrade compatibility)  
 **Namespace:** `Juggernaut\ProviderDashboard\Module`  
 **Author:** Sherwin Gaddis  
 **Repository:** https://github.com/juggernautsei/oe-provider-dashboard
@@ -31,9 +32,18 @@ This module uses OpenEMR 8.x-friendly patterns where available:
 
 ---
 
+## Documentation
+
+| Doc | Description |
+|-----|-------------|
+| [docs/CHART_COMPLETENESS.md](docs/CHART_COMPLETENESS.md) | Chart completeness tasks: rules, lifecycle, schema, team board, ops guide |
+
+---
+
 ## Features
 
-- **Tasks list** — encounters in the last 6 months for the logged-in provider
+- **Task Manager** — permanent optional top tab (`default_open_tabs` id `pdb`) and Misc menu item for all staff
+- **My Tasks (default)** — chart completeness work queue (insurance plan + referral/prior-auth visits)
 - **Supervisor view** — if the user is a supervisor (`users.supervisor_id`), shows their staff plus self
 - **Status** — Not Ready / Ready / In Progress (stored on `forms.review_status`)
 - **Coding column** — CPT/HCPCS (and related) codes on the encounter
@@ -41,7 +51,10 @@ This module uses OpenEMR 8.x-friendly patterns where available:
 - **Click status** — toggles review status via AJAX
 - **eSign All** — password-as-signature bulk sign for unsigned encounter forms
 - **Jump to encounter** — opens patient demographics with encounter context
-- **Sidebar** — Missing Documentation, Cosign Notes (placeholder), Portal Messaging shortcut
+- **Sidebar** — My Tasks, Team board, Missing Documentation, Cosign Notes, Portal Messaging
+- **Chart completeness tasks** — missing primary insurance, plan name, plan type (HMO/PPO), insurance dates, prior-auth/referral visits and units; auto-assigned to the user who creates/updates the patient; auto-closes when data is fixed
+- **Team board** — manager view of open/overdue tasks by assignee
+- **Nightly scan** — `TaskManagerCompleteness` background service
 
 ---
 
@@ -64,7 +77,7 @@ Or copy the module directory into:
 
 1. Log in as an administrator.
 2. Go to **Modules → Manage Modules** (Module Manager).
-3. Find **JSE Provider Dashboard**.
+3. Find **JSE Task Manager**.
 4. **Register**, then **Install** (runs `table.sql`), then **Enable**.
 
 ### 3. What `table.sql` does
@@ -72,15 +85,19 @@ Or copy the module directory into:
 | Change | Purpose |
 |--------|---------|
 | `forms.review_status` column (if missing) | Stores dashboard review state (Ace702-compatible; not in core OpenEMR by default) |
-| Optional `default_open_tabs` row (`pdb`) | Can open the dashboard as a default tab |
+| `default_open_tabs` row (`pdb`) titled **Task Manager** | Permanent top tab on login when activity=1 |
+| `module_task_manager_tasks` table | Chart completeness work queue |
+| `background_services` row `TaskManagerCompleteness` | Nightly completeness rescan |
 
-If the module was copied in before install SQL ran, either reinstall from Module Manager or apply the `forms.review_status` alter manually once.
+If the module was copied in before install SQL ran, either reinstall/upgrade from Module Manager or apply `table.sql` / `sql/*_upgrade.sql` manually.
+
+Full completeness reference: [docs/CHART_COMPLETENESS.md](docs/CHART_COMPLETENESS.md).
 
 ### 4. Open the module
 
 After enable:
 
-- Use the **Provider Dashboard** menu item (Encounters or Miscellaneous area), or  
+- Use the **Task Manager** menu item (Miscellaneous area, preferred), or  
 - Open directly:
 
 ```text
@@ -91,32 +108,40 @@ After enable:
 
 ## Access control (ACL)
 
-Users need **one** of:
+Task Manager is **staff-wide**. Users need **one** of:
 
 | ACL | Typical role |
 |-----|----------------|
+| `patients` / `demo` | Front desk / registration |
+| `patients` / `appt` | Scheduling |
+| `patients` / `med` | Clinical |
+| `encounters` / `notes` | Clinical notes |
 | `encounters` / `coding_a` | Coding |
 | `encounters` / `auth_a` | Encounter auth |
-| `encounters` / `notes` | Clinical notes |
-| `patients` / `med` | Clinical |
+| `acct` / `bill` | Billing |
 | `admin` / `super` | Administrator |
 
-Adjust ACL in `public/_init.php` and `src/Bootstrap.php` if your site uses different roles.
+Menu item uses `patients/demo` so front desk sees it; page gate is the full set above (`public/_init.php`).
 
 ---
 
 ## Usage
 
-### Tasks (main screen)
+### My Tasks (main screen — chart completeness)
 
-1. Open **Provider Dashboard**.
-2. Review the table of recent encounters (provider, date, patient, status, forms, coding, signed).
+1. Open **Task Manager** (menu or permanent tab).
+2. Review open insurance / prior-auth tasks assigned to you (due date, patient, rule).
+3. Click **Open chart** to jump to the patient and fix plan name, dates, plan type, or referral visits.
+4. Tasks **auto-close** when the missing data is saved; use **Rescan** to refresh.
+5. Supervisors also see their staff’s tasks; managers use **Team board** for overdue rollups.
+
+### Missing Documentation
+
+1. Open **Missing Documentation** from the sidebar.
+2. Review encounters needing documentation or coding.
 3. Click **Status** to toggle Ready / Not Ready (AJAX).
 4. Click the **Encounter Number** button to open that patient/encounter.
-5. Use **eSign All** to sign unsigned forms:
-   - Enter your OpenEMR password (used as signature)
-   - Optional amendment text
-   - Submit
+5. Use **eSign All** for unsigned forms (password-as-signature).
 
 Supervisors automatically see encounters for assigned providers (`users.supervisor_id`).
 
@@ -132,7 +157,9 @@ Sidebar action loads the portal messaging frame in the main UI (same idea as the
 
 ## Configuration notes
 
-- Date window is fixed at **6 months** in `DashboardData` (single- and multi-provider queries). Change there if you need a different range.
+- Completeness due date default: **+1 day** from task create (`CompletenessTaskService`).
+- Completeness nightly window: recent open-task patients + insurance/registration activity (`syncRecentPatients`).
+- Missing-documentation date window is fixed at **6 months** in `DashboardData`. Change there if you need a different range.
 - Status UI values map from `forms.review_status` (`NULL`/`0` = Not Ready, `1` = Ready / In Progress when feedback exists).
 - eSign uses core `ESign\Form_Factory` and locks signatures like the native eSign flow.
 
@@ -144,26 +171,39 @@ Sidebar action loads the portal messaging frame in the main UI (same idea as the
 oe-provider-dashboard/
 ├── LICENSE
 ├── README.md
+├── docs/
+│   └── CHART_COMPLETENESS.md       # completeness tasks guide
 ├── composer.json
 ├── info.txt
-├── version.php
+├── version.php                    # 1.2.0 / v_database 3
 ├── table.sql
-├── openemr.bootstrap.php          # registers namespace + menu
+├── sql/
+│   ├── 1_0_0-to-1_1_0_upgrade.sql # Task Manager branding tab
+│   └── 1_1_0-to-1_2_0_upgrade.sql # completeness table + background job
+├── openemr.bootstrap.php          # registers namespace + Bootstrap
 ├── ModuleManagerListener.php      # install/unregister hooks
 ├── moduleConfig.php
 ├── public/
 │   ├── _init.php                  # ACL, globals bag, session, autoload
-│   ├── index.php                  # Tasks dashboard
+│   ├── index.php                  # My Tasks (completeness default)
+│   ├── team.php                   # manager team board
+│   ├── missing_documentation.php  # encounter doc/coding queue
+│   ├── sync_patient.php           # completeness resync API
 │   ├── statuschange.php           # AJAX review status
 │   ├── signAll.php                # AJAX bulk eSign
 │   ├── cosign.php
 │   └── portal_messages.php
+├── scripts/
+│   └── completeness_background.php
 ├── src/
-│   ├── Bootstrap.php              # menu event
+│   ├── Bootstrap.php              # menu + patient create/update hooks
+│   ├── Exception/
+│   ├── Service/Completeness/      # rules + task service
 │   └── Controllers/
 │       ├── DashboardData.php
 │       ├── DocumentStatus.php
 │       └── SupervisorFeedback.php
+├── tests/Unit/Completeness/
 ├── resources/                     # header, menu, footer partials
 ├── css/
 └── js/
@@ -191,8 +231,10 @@ Then register/install/enable in Module Manager.
 |---------|--------------|-----|
 | “An error has occurred” / Unknown tab | CSRF API mismatch on OE 8.5 | Ensure build uses `collectCsrfToken($session, …)` |
 | `Unknown column 'f.review_status'` | Install SQL not applied | Reinstall module or run `table.sql` alter |
-| Not Authorized | ACL | Grant coding/notes/med or admin |
-| Empty table | No encounters in last 6 months for this provider | Create encounters or widen date range in `DashboardData` |
+| Completeness tables missing warning | Upgrade not run | Module Manager upgrade; see [docs/CHART_COMPLETENESS.md](docs/CHART_COMPLETENESS.md) |
+| Completeness tasks never close | Insurance saved without patient event | Rescan / nightly job / `sync_patient.php` |
+| Not Authorized | ACL | Grant demo/appt/med/notes/coding/bill or admin |
+| Empty missing-documentation table | No encounters in last 6 months for this provider | Create encounters or widen date range in `DashboardData` |
 | eSign fails | Wrong password or missing ESign factory | Confirm password; verify core ESign is available |
 
 ---

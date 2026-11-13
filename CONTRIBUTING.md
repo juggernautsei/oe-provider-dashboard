@@ -1,6 +1,6 @@
 # Contributing to oe-provider-dashboard
 
-Thanks for helping improve the OpenEMR Provider Dashboard module.
+Thanks for helping improve the OpenEMR Task Manager module (`oe-provider-dashboard`).
 
 ## Code of conduct
 Be respectful and professional. This project is meant for clinical/ops workflows—never post PHI, passwords, API keys, or real patient data in issues, PRs, or logs.
@@ -15,7 +15,8 @@ Be respectful and professional. This project is meant for clinical/ops workflows
    ```
 
 3. In OpenEMR: **Modules → Manage Modules** → Register → Install → Enable.
-4. Open **Provider Dashboard** (Tasks).
+4. Open **Task Manager** (My Tasks).
+5. Read [docs/CHART_COMPLETENESS.md](docs/CHART_COMPLETENESS.md) before changing completeness rules.
 
 Example Docker copy:
 

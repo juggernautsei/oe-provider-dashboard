@@ -1,7 +1,7 @@
 <?php
 
 /**
- * OpenEMR module bootstrap for Provider Dashboard.
+ * OpenEMR module bootstrap for Task Manager (oe-provider-dashboard package).
  *
  * @package OpenEMR
  * @author  Sherwin Gaddis <sherwingaddis@gmail.com>

@@ -9,7 +9,7 @@
 
 require_once __DIR__ . '/_init.php';
 
-$title = xlt('Portal Messages');
+$title = 'Portal Messages';
 ?>
 <!doctype html>
 <html>
