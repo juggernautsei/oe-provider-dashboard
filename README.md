@@ -1,6 +1,9 @@
 # OpenEMR Task Manager
 
-Staff-wide **Task Manager** for OpenEMR (providers, front desk, billing, supervisors): open work queues for chart completeness (insurance plan type, dates, referral/prior-auth visits), missing documentation/coding, review status, and bulk eSign.
+<img width="1909" height="922" alt="Screenshot from 2026-09-10 10-40-25" src="https://github.com/user-attachments/assets/4d2f0b20-c5da-4760-9e65-b74ca9506a37" />
+
+
+Provider-facing **Tasks** dashboard for OpenEMR: find encounters that still need documentation or coding, track review status, and bulk eSign forms.
 
 **Module Manager name:** JSE Task Manager  
 **Package version:** 1.2.0 (`version.php`)  
