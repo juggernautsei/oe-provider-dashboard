@@ -44,24 +44,36 @@ $webroot = $oeGlobals ? (string) $oeGlobals->get('webroot', $GLOBALS['webroot'] 
 $srcdir = $oeGlobals ? (string) $oeGlobals->get('srcdir', $GLOBALS['srcdir'] ?? '') : (string) ($GLOBALS['srcdir'] ?? '');
 $fileroot = $oeGlobals ? (string) $oeGlobals->get('fileroot', $GLOBALS['fileroot'] ?? '') : (string) ($GLOBALS['fileroot'] ?? '');
 
-// Session wrapper (8.x); fall back to $_SESSION for transitional installs
+// Session wrapper (OE 8.x). Do not swallow failures from getActiveSession —
+// CSRF and auth both depend on a real session object when available.
 $authUserID = 0;
 $authUser = '';
 $session = null;
-try {
-    if (class_exists(SessionWrapperFactory::class)) {
-        $session = SessionWrapperFactory::getInstance()->getActiveSession();
-        if (is_object($session) && method_exists($session, 'get')) {
-            $authUserID = (int) $session->get('authUserID', 0);
-            $authUser = (string) $session->get('authUser', '');
-        } elseif (is_array($session) || $session instanceof ArrayAccess) {
-            $authUserID = (int) ($session['authUserID'] ?? 0);
-            $authUser = (string) ($session['authUser'] ?? '');
-        }
+if (class_exists(SessionWrapperFactory::class)) {
+    $factory = SessionWrapperFactory::getInstance();
+    if (method_exists($factory, 'getActiveSession')) {
+        // OpenEMR 8.x+ (Symfony SessionInterface)
+        $session = $factory->getActiveSession();
     }
-} catch (Throwable $e) {
-    // fall through
+    // Some builds only populate active session after getCoreSession()
+    if ($session === null && method_exists($factory, 'getCoreSession')) {
+        $session = $factory->getCoreSession();
+    }
+    if ($session === null && method_exists($factory, 'getWrapper')) {
+        // Older wrapper API
+        $session = $factory->getWrapper();
+    }
 }
+
+if (is_object($session) && method_exists($session, 'get')) {
+    $authUserID = (int) $session->get('authUserID', 0);
+    $authUser = (string) $session->get('authUser', '');
+} elseif (is_array($session) || $session instanceof ArrayAccess) {
+    $authUserID = (int) ($session['authUserID'] ?? 0);
+    $authUser = (string) ($session['authUser'] ?? '');
+}
+
+// Legacy $_SESSION fallback (still populated by globals.php on many installs)
 if ($authUserID === 0 && isset($_SESSION['authUserID'])) {
     $authUserID = (int) $_SESSION['authUserID'];
 }
@@ -110,37 +122,113 @@ function provider_dashboard_context(): array
 }
 
 /**
- * Collect CSRF token using OE 8.x session-aware API.
+ * Resolve the active OpenEMR session object when available.
  */
-function provider_dashboard_csrf_token(string $subject = 'default'): string
+function provider_dashboard_session(): mixed
 {
     $ctx = provider_dashboard_context();
     $session = $ctx['session'] ?? null;
-    if ($session === null) {
-        // Last resort: try factory again
-        if (class_exists(SessionWrapperFactory::class)) {
-            $session = SessionWrapperFactory::getInstance()->getActiveSession();
+    if ($session !== null) {
+        return $session;
+    }
+
+    if (!class_exists(SessionWrapperFactory::class)) {
+        return null;
+    }
+
+    $factory = SessionWrapperFactory::getInstance();
+    if (method_exists($factory, 'getActiveSession')) {
+        $active = $factory->getActiveSession();
+        if ($active !== null) {
+            return $active;
         }
     }
-    if ($session === null) {
-        throw new RuntimeException('No active session available for CSRF token');
+    if (method_exists($factory, 'getCoreSession')) {
+        return $factory->getCoreSession();
     }
-    return CsrfUtils::collectCsrfToken($session, $subject);
+    if (method_exists($factory, 'getWrapper')) {
+        return $factory->getWrapper();
+    }
+
+    return null;
 }
 
 /**
- * Verify CSRF token using OE 8.x session-aware API.
+ * Whether CsrfUtils::collectCsrfToken expects a session object as the first argument.
+ */
+function provider_dashboard_csrf_needs_session(): bool
+{
+    static $needsSession = null;
+    if ($needsSession !== null) {
+        return $needsSession;
+    }
+
+    $needsSession = false;
+    try {
+        $ref = new ReflectionMethod(CsrfUtils::class, 'collectCsrfToken');
+        $params = $ref->getParameters();
+        if ($params === []) {
+            return false;
+        }
+        $first = $params[0];
+        if ($first->getName() === 'session') {
+            $needsSession = true;
+            return true;
+        }
+        $type = $first->getType();
+        if ($type instanceof ReflectionNamedType && !$type->isBuiltin()) {
+            $needsSession = true;
+            return true;
+        }
+    } catch (Throwable $e) {
+        $needsSession = false;
+    }
+
+    return $needsSession;
+}
+
+/**
+ * Collect CSRF token — supports both OE 7.x ($_SESSION) and OE 8.x (SessionInterface) APIs.
+ */
+function provider_dashboard_csrf_token(string $subject = 'default'): string
+{
+    if (provider_dashboard_csrf_needs_session()) {
+        $session = provider_dashboard_session();
+        if ($session === null) {
+            throw new RuntimeException(
+                'No active session available for CSRF token. ' .
+                'Ensure globals.php started the core session before Task Manager loaded.'
+            );
+        }
+        // Named argument matches OE 8.x prior-auth / core call sites.
+        return (string) CsrfUtils::collectCsrfToken(session: $session, subject: $subject);
+    }
+
+    $token = CsrfUtils::collectCsrfToken($subject);
+    if ($token === false || $token === null || $token === '') {
+        throw new RuntimeException('Unable to collect CSRF token (legacy session key missing).');
+    }
+
+    return (string) $token;
+}
+
+/**
+ * Verify CSRF token — dual API support like collect.
  */
 function provider_dashboard_verify_csrf(?string $token, string $subject = 'default'): bool
 {
-    $ctx = provider_dashboard_context();
-    $session = $ctx['session'] ?? null;
-    if ($session === null && class_exists(SessionWrapperFactory::class)) {
-        $session = SessionWrapperFactory::getInstance()->getActiveSession();
-    }
-    if ($session === null) {
+    if ($token === null || $token === '') {
         return false;
     }
-    return CsrfUtils::verifyCsrfToken($token, $session, $subject);
+
+    if (provider_dashboard_csrf_needs_session()) {
+        $session = provider_dashboard_session();
+        if ($session === null) {
+            return false;
+        }
+        return CsrfUtils::verifyCsrfToken($token, session: $session, subject: $subject);
+    }
+
+    return (bool) CsrfUtils::verifyCsrfToken($token, $subject);
 }
 
